@@ -32,11 +32,19 @@ class MiGNN(torch.nn.Module):
         self.em_start = 1 / math.sqrt(self.enz_num)
         self.mm_start = 1 / math.sqrt(self.met_num)
         
-        # GNN-specific parameters
+        """
         self.EMmatrix = param['EMmatrix']
         self.EMmatrix_rev = param['EMmatrix_rev']
         self.MMmatrix = param["MMmatrix"]    
         self.MMmatrix_rev = param['MMmatrix_rev']
+        """
+        # Convert matrices to Parameters so they move with the model
+        self.EMmatrix = nn.Parameter(torch.tensor(param['EMmatrix'], dtype=torch.float32), requires_grad=False)
+        self.MMmatrix = nn.Parameter(torch.tensor(param['MMmatrix'], dtype=torch.float32), requires_grad=False)
+        self.EMmatrix_rev = nn.Parameter(torch.tensor(param['EMmatrix_rev'], dtype=torch.float32), requires_grad=False)
+        self.MMmatrix_rev = nn.Parameter(torch.tensor(param['MMmatrix_rev'], dtype=torch.float32), requires_grad=False)
+        
+        # GNN-specific parameters
         self.GNN_em_subpro_alpha = param['GNN_em_subpro_alpha']
         self.GNN_mm_strong_alpha = param['GNN_mm_strong_alpha']
         self.GNN_mm_subpro_alpha_ratio = param['GNN_mm_subpro_alpha_ratio']
