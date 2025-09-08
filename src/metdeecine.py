@@ -58,7 +58,7 @@ class MetDeeCINE:
     def ccc_inference(self, model_settings, inference_input, output_dir, parameter_load_path):
         mignn = MiGNN(model_settings)
         mignn.load_state_dict(torch.load(parameter_load_path))
-
+        mignn.to(device)
         RCs_pred, Outputs_pred = Predict_RCmatrix(
             mignn,
             inference_input,
