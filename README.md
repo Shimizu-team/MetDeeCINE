@@ -56,8 +56,7 @@ conda activate MetDeeCINE
 ## Usage
 ### Quick Start
 The simplest way to use MetDeeCINE is through the provided Jupyter notebook tutorial (`tutorial.ipynb`).
-We offer similar ipynb which can be run on Google Colab: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://github.com/Shimizu-team/MetDeeCINE/colab_demo.ipynb)
-
+We offer similar ipynb which can be run on Google Colab: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shimizu-team/metdeecine/blob/main/colab_demo.ipynb)
 Expected runtime: ~3-5 minutes including installation
 
 ### Input Files
