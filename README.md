@@ -221,6 +221,7 @@ MetDEECINE/
 │       ├── csv_files - proteome and metabolome data in csv format (Separated with each experimental condition)
 ├── results/ - Results directory
 ├── tutorial.ipynb - Tutorial notebook
+├── colab_demo.ipynb - Tutorial notebook for Google Colaboratory
 └── envorionment.yml - Conda environment configuration file
 ```
 
