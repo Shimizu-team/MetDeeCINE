@@ -59,6 +59,7 @@ class MetDeeCINE:
         mignn = MiGNN(model_settings)
         mignn.load_state_dict(torch.load(parameter_load_path))
         mignn.to(device)
+        mignn.eval()
         RCs_pred, Outputs_pred = Predict_RCmatrix(
             mignn,
             inference_input,

@@ -129,7 +129,7 @@ def SCC(pred, answer):
             s_corrs.append(0)
     return np.mean(s_corrs)
 
-def create_optuna_dic(conf, trial, model_name, batch_norm, reg_type, enzyme_name, metabolite_name, EMmatrix, MMmatrix, EMmatrix_rev, MMmatrix_rev):
+def create_optuna_dic(conf, trial, model_name, batch_norm, enzyme_name, metabolite_name, EMmatrix, MMmatrix, EMmatrix_rev, MMmatrix_rev):
     model_tuning_params = {
         "exp": conf.exp,
         "enz_num": len(enzyme_name),
@@ -141,7 +141,6 @@ def create_optuna_dic(conf, trial, model_name, batch_norm, reg_type, enzyme_name
         "lr": conf.lr,
         # Model configuration
         'loss_fn': trial.suggest_categorical('loss_fn', conf.loss_fn_suggest),
-        'reg_type': trial.suggest_categorical('reg_type', conf.reg_type_suggest),
         'af': trial.suggest_categorical('af', conf.af_suggest),
         'batch_norm': batch_norm,
         
@@ -209,7 +208,6 @@ class OptunaModel:
             trial,
             self.conf.ML_model,
             self.conf.batch_norm,
-            self.conf.reg_type,
             self.enzyme_name,
             self.metabolite_name,
             self.EMmatrix,

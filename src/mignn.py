@@ -17,8 +17,8 @@ class MiGNN(torch.nn.Module):
         self.lr = param['lr']
         self.af = param['af']
         self.lossfn = param['loss_fn']
-        self.reg_type = param['reg_type']
-        
+        self.batch_norm = param['batch_norm']
+
         # Experimental data settings
         self.exp = True  # Always True for public release
 
@@ -27,36 +27,48 @@ class MiGNN(torch.nn.Module):
             self.loss_fn = nn.MSELoss()
         elif self.lossfn == "L1":
             self.loss_fn = nn.L1Loss()
-            
+
         # Xavier initialization
         self.em_start = 1 / math.sqrt(self.enz_num)
         self.mm_start = 1 / math.sqrt(self.met_num)
-        
-        """
-        self.EMmatrix = param['EMmatrix']
-        self.EMmatrix_rev = param['EMmatrix_rev']
-        self.MMmatrix = param["MMmatrix"]    
-        self.MMmatrix_rev = param['MMmatrix_rev']
-        """
-        # Convert matrices to Parameters so they move with the model
-        self.EMmatrix = nn.Parameter(torch.tensor(param['EMmatrix'], dtype=torch.float32), requires_grad=False)
-        self.MMmatrix = nn.Parameter(torch.tensor(param['MMmatrix'], dtype=torch.float32), requires_grad=False)
-        self.EMmatrix_rev = nn.Parameter(torch.tensor(param['EMmatrix_rev'], dtype=torch.float32), requires_grad=False)
-        self.MMmatrix_rev = nn.Parameter(torch.tensor(param['MMmatrix_rev'], dtype=torch.float32), requires_grad=False)
-        
+
+        # Register the network structure as non-persistent buffers so that they
+        # move with the model (.to(device)) but are NOT stored in state_dict.
+        # The matrices are rebuilt from stoichiometry.txt on every run, so
+        # keeping them out of the checkpoint keeps the saved weights portable.
+        self.register_buffer('EMmatrix',
+                             torch.as_tensor(param['EMmatrix'], dtype=torch.float32).clone(),
+                             persistent=False)
+        self.register_buffer('MMmatrix',
+                             torch.as_tensor(param['MMmatrix'], dtype=torch.float32).clone(),
+                             persistent=False)
+        self.register_buffer('EMmatrix_rev',
+                             torch.as_tensor(param['EMmatrix_rev'], dtype=torch.float32).clone(),
+                             persistent=False)
+        self.register_buffer('MMmatrix_rev',
+                             torch.as_tensor(param['MMmatrix_rev'], dtype=torch.float32).clone(),
+                             persistent=False)
+
         # GNN-specific parameters
         self.GNN_em_subpro_alpha = param['GNN_em_subpro_alpha']
         self.GNN_mm_strong_alpha = param['GNN_mm_strong_alpha']
         self.GNN_mm_subpro_alpha_ratio = param['GNN_mm_subpro_alpha_ratio']
         self.num_layer = param['GNN_numlayer']
-        
+
         # E→M layer
         em_linear_weight = torch.empty([self.enz_num, self.met_num]).normal_(-1 * self.em_start, self.em_start)
         self.em_linear_weight = nn.Parameter(em_linear_weight)
-        
+
         # M→M layer
         mm_linear_weight = torch.empty([self.met_num, self.met_num]).normal_(-1 * self.mm_start, self.mm_start)
         self.mm_linear_weight = nn.Parameter(mm_linear_weight)
+
+        # Batch normalization for the M→M layer.
+        # batch_norm is basically always False (the released pre-trained weights were
+        # trained without it). The layer is nevertheless always created so that
+        # checkpoints stay interchangeable regardless of the batch_norm setting,
+        # and it is only applied in forward() when batch_norm is True.
+        self.batch_normalization = nn.BatchNorm1d(self.met_num)
 
     def activation(self, input):
         # Activation functions
@@ -77,6 +89,8 @@ class MiGNN(torch.nn.Module):
         metabolite = torch.mm(input, torch.mul(self.EMmatrix, self.em_linear_weight))
         for _ in range(self.num_layer):
             metabolite_change_before = torch.mm(metabolite, self.mm_linear_weight)
+            if self.batch_norm:
+                metabolite_change_before = self.batch_normalization(metabolite_change_before)
             metabolite = metabolite + self.activation(metabolite_change_before)
         return metabolite
 
@@ -107,18 +121,17 @@ class MiGNN(torch.nn.Module):
         return fit_loss
 
     def compute_regularization(self):
-        # GNN regularization
-        if self.reg_type == "l1":
-            self.em_subpro_regularization = torch.abs(torch.mul(self.EMmatrix, self.em_linear_weight)).sum()
-            self.mm_related_regularization = torch.abs(torch.mul(self.MMmatrix, self.mm_linear_weight)).sum()
-            self.mm_strong_regularization = torch.abs(torch.mul(self.MMmatrix_rev, self.mm_linear_weight)).sum()
-        elif self.reg_type == "l2":
-            self.em_subpro_regularization = torch.mul(torch.mul(self.EMmatrix, self.em_linear_weight),
-                                                torch.mul(self.EMmatrix, self.em_linear_weight)).sum()
-            self.mm_related_regularization = torch.mul(torch.mul(self.MMmatrix, self.mm_linear_weight),
-                                                torch.mul(self.MMmatrix, self.mm_linear_weight)).sum()
-            self.mm_strong_regularization = torch.mul(torch.mul(self.MMmatrix_rev, self.mm_linear_weight),
-                                                torch.mul(self.MMmatrix_rev, self.mm_linear_weight)).sum()
+        # GNN regularization: L1 and L2 are used for different groups of edges.
+        # L2 (shrinkage only) for edges that exist in the metabolic network:
+        #   - enzyme→metabolite pairs connected by a reaction (EMmatrix)
+        #   - metabolite→metabolite pairs sharing a reaction (MMmatrix)
+        self.em_subpro_regularization = torch.mul(torch.mul(self.EMmatrix, self.em_linear_weight),
+                                            torch.mul(self.EMmatrix, self.em_linear_weight)).sum()
+        self.mm_related_regularization = torch.mul(torch.mul(self.MMmatrix, self.mm_linear_weight),
+                                            torch.mul(self.MMmatrix, self.mm_linear_weight)).sum()
+        # L1 (sparsification, drives weights to exactly 0) for edges that do NOT
+        # exist in the metabolic network (MMmatrix_rev)
+        self.mm_strong_regularization = torch.abs(torch.mul(self.MMmatrix_rev, self.mm_linear_weight)).sum()
 
     def edge_penalty(self):
         edge_loss = \

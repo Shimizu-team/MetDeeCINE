@@ -32,7 +32,6 @@ def create_model_params_dic(conf, enz_num, met_num, EMmatrix, MMmatrix, EMmatrix
         # Model configuration
         'lr': conf.lr,
         'loss_fn': conf.loss_fn,
-        'reg_type': conf.reg_type,
         'af': conf.af,
         'batch_norm': conf.batch_norm,
 

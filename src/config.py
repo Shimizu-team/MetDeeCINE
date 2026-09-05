@@ -42,14 +42,23 @@ class config:
         self.Epoch=200 # Maximum number of epochs
         self.patience=10 # Early stopping patience
         self.lr = 1e-3 # Learning rate
-        self.batch_norm=False # RECOMMENDED: False
+        # Keep batch_norm False in normal use. If True, BatchNorm1d is applied in the M→M layer,
+        # but the released pre-trained weights were trained with batch_norm=False.
+        self.batch_norm=False # RECOMMENDED: False (basically always False)
         # ---Setting below is optimized for the Uematsu_2022 dataset---
+        # Regularization is fixed per edge type (see mignn.py compute_regularization):
+        #   L2 on edges that exist in the metabolic network
+        #       - E→M edges given by the stoichiometry  (GNN_em_subpro_alpha)
+        #       - M→M edges between related metabolites  (GNN_mm_strong_alpha * GNN_mm_subpro_alpha_ratio)
+        #   L1 on M→M edges between unrelated metabolites (GNN_mm_strong_alpha), which
+        #       drives those weights to exactly zero and keeps the network sparse.
+        # NOTE: the weights below were tuned before this L1/L2 split was introduced,
+        # so re-tuning with Optuna is recommended for a new dataset.
         self.GNN_numlayer = 1 # Number of GNN layers
-        self.GNN_em_subpro_alpha = 0.0008343997810348038 # Weight for subgraph information in E→M layer
-        self.GNN_mm_strong_alpha = 0.009245794280397476 # Weight for edges between unrelated metabolites in M→M layer
-        self.GNN_mm_subpro_alpha_ratio = 0.1 # Weight ratio for edges between related metabolites in M→M layer
+        self.GNN_em_subpro_alpha = 0.0008343997810348038 # L2 weight for reaction edges in E→M layer
+        self.GNN_mm_strong_alpha = 0.009245794280397476 # L1 weight for edges between unrelated metabolites in M→M layer
+        self.GNN_mm_subpro_alpha_ratio = 0.1 # Ratio giving the L2 weight for edges between related metabolites in M→M layer
         self.loss_fn = "L1" # "MSE", "L1", loss function
-        self.reg_type = "l2" # "l1", "l2", regularization type for weights
         self.af = "elu" # Activation functions: "tanh", "relu", "elu", "swish", "mish"
         # --- 
 
@@ -62,7 +71,6 @@ class config:
         self.lr_suggest = [1e-5,1e-1]
         self.loss_fn_suggest = ["MSE","L1"]
         self.eval_fn_suggest = ["MSE","MAE"]
-        self.reg_type_suggest = ["l1","l2"]
         self.af_suggest = ["tanh","relu","elu","swish","mish"]
         self.GNN_numlayer_suggest = [1,2,3,4]
         self.GNN_em_subpro_alpha_suggest = [1e-7,1e-1]
